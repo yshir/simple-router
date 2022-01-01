@@ -7,8 +7,14 @@ pub struct Router {
 
 impl Router {
     pub fn route(&self, method: Method, pattern: &str, handler: Handler) -> Self {
+        // trailing slash
+        let mut pattern = pattern.to_string();
+        if pattern.ends_with('/') {
+            pattern.pop();
+        }
+
         let mut nodes = self.nodes.clone();
-        nodes.push(Node::new(method, pattern.to_string(), handler));
+        nodes.push(Node::new(method, pattern, handler));
         Self { nodes }
     }
 
@@ -30,12 +36,20 @@ impl Router {
             let method = Method::try_from(method).unwrap();
             if node.method == method {
                 let path = {
+                    let mut a = path.to_string();
+
                     // remove consecutive slashes
                     // /foo////bar -> /foo/bar
-                    let mut a = path.to_string();
                     while a.contains("//") {
                         a = a.replace("//", "/");
                     }
+
+                    // trailing slash
+                    // /foo/ -> /foo
+                    if a.ends_with('/') {
+                        a.pop();
+                    }
+
                     a
                 };
 
@@ -136,5 +150,19 @@ mod tests {
         let router = Router::default().route(Method::GET, "/a/b/c", || String::from("abc"));
 
         assert_eq!("abc", router.resolve("GET", "/a//////b//c"));
+    }
+
+    #[test]
+    fn trailing_slash() {
+        let router = Router::default()
+            .get("/foo", || String::from("foo"))
+            .get("/bar/", || String::from("bar"));
+
+        assert_eq!("foo", router.resolve("GET", "/foo"));
+        assert_eq!("foo", router.resolve("GET", "/foo/"));
+        assert_eq!("foo", router.resolve("GET", "/foo//"));
+        assert_eq!("bar", router.resolve("GET", "/bar"));
+        assert_eq!("bar", router.resolve("GET", "/bar/"));
+        assert_eq!("bar", router.resolve("GET", "/bar//"));
     }
 }
